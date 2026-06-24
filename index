@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เกมแยกขยะด้วย AI พลันตา!</title>
+    <title>เกมแยกขยะอัจฉริยะ (ตรวจจับสี)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
     
     <style>
         body {
             margin: 0;
             padding: 0;
-            background-color: #f0f4f8;
-            font-family: 'Arial', sans-serif;
+            background-color: #f4f7f6;
+            font-family: 'Kanit', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -24,176 +22,162 @@
             color: #2c3e50;
             margin-bottom: 5px;
         }
-        p {
-            color: #7f8c8d;
-            margin-top: 0;
+        .instruction {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 16px;
+            text-align: center;
         }
         #canvas-container {
             border-radius: 15px;
             overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            background: #fff;
-        }
-        #loading {
-            font-size: 20px;
-            color: #e67e22;
-            font-weight: bold;
-            margin: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
         }
     </style>
 </head>
 <body>
 
-    <h1>เกมแยกขยะให้ถูกถัง ♻️</h1>
-    <p>หยิบขยะมาโชว์หน้ากล้อง แล้วขยับมือให้ตรงกับถังขยะ!</p>
-    <div id="loading">กำลังโหลด AI และเปิดกล้อง... กรุณารอสักครู่...</div>
+    <h1>เกมหยิบขยะลงถัง ♻️</h1>
+    <div class="instruction">
+        <strong>วิธีเล่น:</strong> ดูโจทย์ด้านบน แล้วหยิบวัตถุที่มี <strong>"สี"</strong> ตรงกับถังขยะมาจ่อที่หน้ากล้อง!<br>
+        🔵 พลาสติก (สีน้ำเงิน) | 🟢 กระดาษ (สีเขียว) | 🔴 แก้ว/อันตราย (สีแดง)
+    </div>
+    
     <div id="canvas-container"></div>
 
     <script>
-        // ลิงก์โมเดล Teachable Machine (เปลี่ยนเป็นลิงก์ของคุณได้ที่นี่)
-        // โมเดลนี้สมมติว่ามี Class ชื่อ: "Plastic" (พลาสติก), "Paper" (กระดาษ), "Glass" (แก้ว) และ "Background" (ว่างเปล่า)
-        const URL = "https://teachablemachine.withgoogle.com/models/v3_YmN_Wk/"; 
-        
-        let model, webcam, labelContainer, maxPredictions;
-        let currentLabel = "กำลังตรวจสอบ...";
+        let webcam;
         let score = 0;
+        let currentTarget = "";
+        let detectedColorName = "ไม่พบวัตถุ";
         
-        // ตัวแปรสำหรับเกม
-        let bins = [];
-        let currentTrashType = "";
-        
-        async function initAI() {
-            const modelURL = URL + "model.json";
-            const metadataURL = URL + "metadata.json";
-
-            // โหลดโมเดล
-            model = await tmImage.load(modelURL, metadataURL);
-            maxPredictions = model.getTotalClasses();
-
-            // ตั้งค่ากล้องเว็บแคมผ่านโครงสร้างของ Teachable Machine เข้า p5
-            document.getElementById('loading').style.display = 'none';
-        }
+        // กำหนดช่วงสีที่จะตรวจจับ (RGB)
+        const targets = [
+            { name: "Plastic", color: [0, 0, 255], thName: "พลาสติก (สีน้ำเงิน)", hex: "#3498db" },
+            { name: "Paper", color: [0, 255, 0], thName: "กระดาษ (สีเขียว)", hex: "#2ecc71" },
+            { name: "Glass", color: [255, 0, 0], thName: "แก้ว/อันตราย (สีแดง)", hex: "#e74c3c" }
+        ];
 
         function setup() {
-            // สร้าง Canvas ขนาด 640x480 ไปไว้ใน Container
             let canvas = createCanvas(640, 480);
             canvas.parent('canvas-container');
             
-            // เปิดกล้องด้วย p5.js
+            // เปิดกล้องทันที
             webcam = createCapture(VIDEO);
             webcam.size(640, 480);
-            webcam.hide(); // ซ่อนตัว preview หลักของ p5 ไว้ เพื่อไปวาดใน canvas เอง
-
-            // เริ่มโหลด AI
-            initAI();
-
-            // กำหนดตำแหน่งถังขยะ 3 ประเภท
-            bins = [
-                { name: "Plastic", color: "#3498db", x: 100, y: 380, w: 100, h: 100, text: "ถังพลาสติก" },
-                { name: "Paper", color: "#2ecc71", x: 270, y: 380, w: 100, h: 100, text: "ถังกระดาษ" },
-                { name: "Glass", color: "#e74c3c", x: 440, y: 380, w: 100, h: 100, text: "ถังแก้ว" }
-            ];
+            webcam.hide();
             
-            // สุ่มขยะชิ้นแรกที่ผู้เล่นต้องหามาโชว์
+            // สุ่มโจทย์แรก
             nextTurn();
         }
 
         function draw() {
-            // วาดภาพจากกล้องเว็บแคมลงบน Canvas
-            // กลับด้านซ้ายขวาเพื่อให้เหมือนกระจกเงา เล่นง่ายขึ้น
+            // วาดภาพกล้อง (แบบกลับด้านให้เหมือนกระจก จะได้ไม่งงเวลากระดิกมือ)
             translate(width, 0);
             scale(-1, 1);
             image(webcam, 0, 0, width, height);
-            
-            // กลับด้านตัวอักษรกลับมาให้ปกติ
             translate(width, 0);
             scale(-1, 1);
 
+            // วิเคราะห์สีที่อยู่ "ตรงกลางจอ"
+            analyzeCenterColor();
+
             // วาด UI เกม
-            drawGameUI();
-
-            // ส่งภาพไปให้ AI ทาย (ถ้าโหลดโมเดลเสร็จแล้ว)
-            if (model) {
-                predict();
-            }
+            drawUI();
         }
 
-        async function predict() {
-            // ทายผลจาก Canvas
-            const prediction = await model.predict(webcam.elt);
-            
-            // หาอันที่มีความมั่นใจสูงสุด (Probability สูงสุด)
-            let highestProb = 0;
-            let bestMatch = "Background";
-            
-            for (let i = 0; i < maxPredictions; i++) {
-                if (prediction[i].probability > highestProb) {
-                    highestProb = prediction[i].probability;
-                    bestMatch = prediction[i].className;
-                }
-            }
-
-            // ถ้าความมั่นใจมากกว่า 75% ให้ถือว่าเป็นขยะชิ้นนั้น
-            if (highestProb > 0.75) {
-                currentLabel = bestMatch;
+        function analyzeCenterColor() {
+            webcam.loadPixels();
+            if (webcam.pixels.length > 0) {
+                // ดึงค่าสีจากจุดตรงกลางของกล้อง (X: 320, Y: 240)
+                let cx = webcam.width / 2;
+                let cy = webcam.height / 2;
+                let loc = (cx + cy * webcam.width) * 4;
                 
-                // ตรวจสอบเงื่อนไขการชนะ: ถ้าขยะที่ถืออยู่ ตรงกับขยะที่โจทย์สั่ง
-                if (currentLabel === currentTrashType) {
-                    score += 10;
-                    nextTurn();
+                let r = webcam.pixels[loc];
+                let g = webcam.pixels[loc+1];
+                let b = webcam.pixels[loc+2];
+
+                // วาดเป้าเล็งตรงกลางจอ
+                noFill();
+                stroke(255, 255, 0);
+                strokeWeight(3);
+                ellipse(cx, cy, 30, 30);
+                fill(r, g, b);
+                ellipse(cx, cy, 10, 10);
+
+                // ค้นหาสีที่ใกล้เคียงที่สุด
+                let closestMatch = "None";
+                let recordDistance = 1000; // ค่าตั้งต้นสูงๆ
+
+                for (let t of targets) {
+                    // คำนวณระยะห่างของสี (Color Distance)
+                    let d = dist(r, g, b, t.color[0], t.color[1], t.color[2]);
+                    if (d < recordDistance && d < 150) { // 150 คือค่าความไวในการตรวจจับ
+                        recordDistance = d;
+                        closestMatch = t.name;
+                    }
                 }
-            } else {
-                currentLabel = "ไม่แน่ใจ...";
+
+                // อัปเดตสถานะสีที่พบ
+                if (closestMatch !== "None") {
+                    let matchedObj = targets.find(t => t.name === closestMatch);
+                    detectedColorName = matchedObj.thName;
+
+                    // ถ้าสีที่อมตรงกับโจทย์ ได้คะแนนทันที!
+                    if (closestMatch === currentTarget.name) {
+                        score += 10;
+                        nextTurn();
+                    }
+                } else {
+                    detectedColorName = "ไม่พบวัตถุสีเด่นชัด";
+                }
             }
         }
 
-        function drawGameUI() {
-            // แถบแสดงคะแนนและโจทย์
-            fill(0, 0, 0, 150);
+        function drawUI() {
+            // แถบโจทย์บน
+            fill(0, 0, 0, 180);
+            noStroke();
             rect(10, 10, 620, 60, 10);
             
             fill(255);
-            textSize(20);
+            textSize(22);
             textAlign(LEFT, CENTER);
             text(`คะแนน: ${score}`, 30, 40);
             
             textAlign(RIGHT, CENTER);
-            fill("#f1c40f");
-            text(`โจทย์: จงหยิบขยะประเภท [ ${getThaiName(currentTrashType)} ]`, 610, 40);
+            fill(currentTarget.hex);
+            text(`โจทย์: เอาขยะ [ ${currentTarget.thName} ] มาจ่อตรงกลาง!`, 610, 40);
 
-            // วาดถังขยะแต่ละใบ
-            for (let bin of bins) {
-                fill(bin.color);
-                rect(bin.x, bin.y, bin.w, bin.h, 10);
+            // ถังขยะด้านล่างแสดงสัญลักษณ์สี
+            let binW = 120;
+            let binH = 80;
+            let startX = 60;
+            
+            for (let i = 0; i < targets.length; i++) {
+                let t = targets[i];
+                fill(t.hex);
+                rect(startX + (i * 190), 380, binW, binH, 8);
                 
                 fill(255);
                 textSize(16);
                 textAlign(CENTER, CENTER);
-                text(bin.text, bin.x + bin.w/2, bin.y + bin.h/2);
+                text(t.thName.split(' ')[0], startX + (i * 190) + binW/2, 420);
             }
 
-            // แสดงผลว่าตอนนี้ AI เห็นอะไร
-            fill(0, 0, 0, 180);
-            rect(10, 100, 220, 40, 5);
+            // แสดงผลลัพธ์การตรวจจับแบบ Real-time
+            fill(0, 0, 0, 150);
+            rect(10, 80, 250, 35, 5);
             fill(255);
-            textSize(16);
+            textSize(14);
             textAlign(LEFT, CENTER);
-            text(`AI เห็นเป็น: ${getThaiName(currentLabel)}`, 20, 120);
+            text(`วัตถุตรงเป้าเล็ง: ${detectedColorName}`, 20, 97);
         }
 
         function nextTurn() {
-            const types = ["Plastic", "Paper", "Glass"];
-            currentTrashType = random(types);
-        }
-
-        function getThaiName(engName) {
-            switch(engName) {
-                case "Plastic": return "พลาสติก";
-                case "Paper": return "กระดาษ";
-                case "Glass": return "แก้ว";
-                case "Background": return "อากาศว่างเปล่า";
-                default: return engName;
-            }
+            // สุ่มประเภทขยะรอบถัดไป
+            currentTarget = random(targets);
         }
     </script>
 </body>
