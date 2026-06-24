@@ -3,200 +3,214 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เกมแยกขยะอัจฉริยะ (ตรวจจับสี)</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.js"></script>
-    
+    <title>เกมแยกขยะ AR - เวอร์ชันเสถียรที่สุด</title>
     <style>
+        * { box-sizing: border-box; }
         body {
             margin: 0;
             padding: 0;
-            background-color: #f4f7f6;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e272e;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            color: #fff;
+            overflow: hidden;
         }
         h1 {
-            color: #2c3e50;
-            margin: 10px 0 5px 0;
-            font-size: 24px;
-        }
-        .instruction {
-            color: #555;
-            margin-bottom: 15px;
-            font-size: 14px;
+            margin: 5px 0;
+            font-size: 20px;
             text-align: center;
-            padding: 0 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
-        #canvas-container {
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        #game-box {
             position: relative;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 4/3;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            border: 3px solid #3d3d3d;
         }
-        /* ซ่อนแท็ก video หลักเพื่อไม่ให้มันแสดงซ้อนกัน */
-        #webcam-video {
+        /* ดึงกล้องซ่อนไว้เบื้องหลังเพื่อเอาภาพมาประมวลผล */
+        #webcam {
             display: none;
+        }
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #info-panel {
+            width: 100%;
+            max-width: 500px;
+            padding: 10px;
+            text-align: center;
+            font-size: 14px;
+            color: #ced6e0;
         }
     </style>
 </head>
 <body>
 
-    <h1>เกมหยิบขยะลงถัง AR ♻️</h1>
-    <div class="instruction">
-        <strong>วิธีเล่น:</strong> นำวัตถุที่มี <strong>"สีตรงกับโจทย์"</strong> มาจ่อที่วงกลมตรงกลางเป้าเล็งบนจอ!<br>
-        🔵 พลาสติก (สีน้ำเงิน) | 🟢 กระดาษ (สีเขียว) | 🔴 แก้ว/อันตราย (สีแดง)
-    </div>
+    <h1>♻️ เกมหยิบขยะลงถัง AR</h1>
     
-    <video id="webcam-video" autoplay playsinline muted></video>
-    <div id="canvas-container"></div>
+    <div id="game-box">
+        <video id="webcam" autoplay playsinline muted></video>
+        <canvas id="gameCanvas" width="640" height="480"></canvas>
+    </div>
+
+    <div id="info-panel">
+        <strong>วิธีเล่น:</strong> หาวัตถุสีตามที่โจทย์สั่ง มาบังที่ 🎯 <strong>เป้าเล็งตรงกลางจอ</strong><br>
+        🔵 พลาสติก (น้ำเงิน) | 🟢 กระดาษ (เขียว) | 🔴 แก้ว/อันตราย (แดง)
+    </div>
 
     <script>
-        let videoElement;
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
         let score = 0;
-        let currentTarget = "";
-        let detectedColorName = "กำลังเริ่มระบบกล้อง...";
-        
-        // ช่วงสีเป้าหมาย [R, G, B]
+        let currentTarget = null;
+        let detectedColorText = "กำลังโหลดกล้อง...";
+
+        // ค่าสีอ้างอิงสำหรับการตรวจจับ [R, G, B]
         const targets = [
-            { name: "Plastic", color: [0, 100, 255], thName: "พลาสติก (สีน้ำเงิน)", hex: "#3498db" },
-            { name: "Paper", color: [0, 200, 100], thName: "กระดาษ (สีเขียว)", hex: "#2ecc71" },
-            { name: "Glass", color: [255, 50, 50], thName: "แก้ว/อันตราย (สีแดง)", hex: "#e74c3c" }
+            { name: "Plastic", color: [0, 110, 240], thName: "พลาสติก (สีน้ำเงิน)", hex: "#0984e3" },
+            { name: "Paper", color: [46, 204, 113], thName: "กระดาษ (สีเขียว)", hex: "#2ecc71" },
+            { name: "Glass", color: [231, 76, 60], thName: "แก้ว/อันตราย (สีแดง)", hex: "#e74c3c" }
         ];
 
-        function setup() {
-            // สร้างพื้นที่สำหรับเล่นเกมขนาดเหมาะสมกับมือถือและคอมพิวเตอร์
-            let canvasW = min(windowWidth - 20, 640);
-            let canvasH = (canvasW / 4) * 3; // สัดส่วน 4:3
-            let canvas = createCanvas(canvasW, canvasH);
-            canvas.parent('canvas-container');
-            
-            // ดึง Element วิดีโอเพื่อสั่งเปิดกล้องผ่านระบบของเบราว์เซอร์โดยตรง
-            videoElement = document.getElementById('webcam-video');
-            
-            // ขอกล้องจากอุปกรณ์ (รองรับทั้งคอมและมือถือ)
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" } // ใช้กล้องหลังถ้าเล่นบนมือถือ
-                })
-                .then(function(stream) {
-                    videoElement.srcObject = stream;
-                    videoElement.play();
-                })
-                .catch(function(err) {
-                    alert("ไม่สามารถเปิดกล้องได้: " + err.name + " กรุณาตรวจสอบการอนุญาตสิทธิ์สิทธิ์กล้อง");
-                });
-            } else {
-                alert("เบราว์เซอร์นี้ไม่สนับสนุนการเปิดกล้องผ่านเว็บ");
-            }
-            
-            nextTurn();
-        }
-
-        function draw() {
-            // ดึงภาพจากวิดีโอมาวาดลงในหน้าเกม p5.js
-            if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
-                image(videoElement, 0, 0, width, height);
-                // วิเคราะห์และตรวจจับสีจากตรงกลางจอ
-                analyzeCenterColor();
-            } else {
-                // หน้าจอดำระหว่างรอกล้องทำงาน
-                background(0);
-                fill(255);
-                textAlign(CENTER, CENTER);
-                textSize(16);
-                text("กำลังเชื่อมต่อกล้อง...", width/2, height/2);
-            }
-
-            // วาดเมนูและโจทย์บนจอ
-            drawUI();
-        }
-
-        function analyzeCenterColor() {
-            // ดึงข้อมูลพิกเซลของเฟรมภาพปัจจุบัน
-            loadPixels();
-            
-            let cx = floor(width / 2);
-            let cy = floor(height / 2);
-            
-            // หาจุดพิกเซลตรงกลางในอาร์เรย์ pixels
-            let dRatio = pixelDensity();
-            let idx = 4 * ((cy * dRatio) * (width * dRatio) + (cx * dRatio));
-            
-            let r = pixels[idx];
-            let g = pixels[idx+1];
-            let b = pixels[idx+2];
-
-            // วาดวงกลมเป้าเล็งตรงกลางจอ
-            noFill();
-            stroke(255, 255, 0);
-            strokeWeight(3);
-            ellipse(cx, cy, 40, 40);
-            fill(r, g, b);
-            noStroke();
-            ellipse(cx, cy, 15, 15);
-
-            // คำนวณสีที่นำมาจ่อว่าใกล้เคียงถังขยะใบไหนที่สุด
-            let closestMatch = "None";
-            let recordDistance = 999;
-
-            for (let t of targets) {
-                let d = dist(r, g, b, t.color[0], t.color[1], t.color[2]);
-                // ระยะห่างของความเพี้ยนสี ยิ่งน้อยยิ่งใกล้เคียง (ตั้งไว้ไม่เกิน 140)
-                if (d < recordDistance && d < 140) {
-                    recordDistance = d;
-                    closestMatch = t.name;
-                }
-            }
-
-            if (closestMatch !== "None") {
-                let matchedObj = targets.find(t => t.name === closestMatch);
-                detectedColorName = matchedObj.thName;
-
-                // ตอบถูก -> บวกคะแนน -> สุ่มโจทย์ใหม่
-                if (closestMatch === currentTarget.name) {
-                    score += 10;
-                    nextTurn();
-                }
-            } else {
-                detectedColorName = "ไม่พบวัตถุสีเด่นชัด";
-            }
-        }
-
-        function drawUI() {
-            // กล่องโจทย์ด้านบน
-            fill(0, 0, 0, 180);
-            rect(10, 10, width - 20, 50, 8);
-            
-            fill(255);
-            textSize(width > 400 ? 16 : 12);
-            textAlign(LEFT, CENTER);
-            text(`คะแนน: ${score}`, 25, 35);
-            
-            textAlign(RIGHT, CENTER);
-            fill(currentTarget.hex);
-            text(`โจทย์: [ ${currentTarget.thName.split(' ')[0]} ]`, width - 25, 35);
-
-            // แสดงสถานะด้านล่างเป้าหมาย
-            fill(0, 0, 0, 150);
-            rect(10, height - 45, width - 20, 35, 5);
-            fill(255);
-            textSize(13);
-            textAlign(CENTER, CENTER);
-            text(`วัตถุตรงเป้า: ${detectedColorName}`, width / 2, height - 28);
-        }
-
+        // สุ่มโจทย์ใหม่
         function nextTurn() {
-            currentTarget = random(targets);
+            currentTarget = targets[Math.floor(Math.random() * targets.length)];
         }
-        
-        function windowResized() {
-            let canvasW = min(windowWidth - 20, 640);
-            let canvasH = (canvasW / 4) * 3;
-            resizeCanvas(canvasW, canvasH);
+
+        // เริ่มต้นระบบกล้อง (โครงสร้างมาตรฐานขั้นสูง รองรับทุกบราวเซอร์)
+        async function startCamera() {
+            const constraints = {
+                video: {
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: "environment" // ใช้กล้องหลังในมือถือ ถ้าคอมจะสลับไปกล้องหน้าอัตโนมัติ
+                },
+                audio: false
+            };
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                nextTurn();
+                requestAnimationFrame(gameLoop); // เริ่มลูปเกมเมื่อกล้องพร้อม
+            } catch (err) {
+                console.error("Camera error: ", err);
+                detectedColorText = "❌ ไม่สามารถเข้าถึงกล้องได้ กรุณากดอนุญาตสิทธิ์";
+                alert("กรุณาอนุญาตให้เว็บเข้าถึงกล้องถ่ายรูปเพื่อเริ่มเล่นเกม");
+            }
         }
+
+        // ลูปประมวลผลกราฟิกและเกม (Game Loop)
+        function gameLoop() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                // 1. วาดภาพจากกล้องลงบน Canvas (กลับด้านซ้ายขวาให้เหมือนกระจก เพื่อให้ผู้เล่นไม่งง)
+                ctx.save();
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+
+                // 2. ดึงค่าสีตรงจุดศูนย์กลางจอ
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const pixelData = ctx.getImageData(cx, cy, 1, 1).data;
+                const r = pixelData[0];
+                const g = pixelData[1];
+                const b = pixelData[2];
+
+                // 3. ตรวจสอบสีและคำนวณระยะห่างทางคณิตศาสตร์ (Color Distance)
+                let closestMatch = "None";
+                let minDistance = 140; // ค่า Threshold ยิ่งน้อยยิ่งต้องสีเป๊ะ
+
+                for (let t of targets) {
+                    // สูตรหาความต่างสี: Math.sqrt(ΔR² + ΔG² + ΔB²)
+                    let d = Math.sqrt(
+                        Math.pow(r - t.color[0], 2) + 
+                        Math.pow(g - t.color[1], 2) + 
+                        Math.pow(b - t.color[2], 2)
+                    );
+                    if (d < minDistance) {
+                        minDistance = d;
+                        closestMatch = t.name;
+                    }
+                }
+
+                // 4. อัปเดตตรรกะเกมส์
+                if (closestMatch !== "None") {
+                    const matchedObj = targets.find(t => t.name === closestMatch);
+                    detectedColorText = matchedObj.thName;
+
+                    // ถ้าหยิบขยะถูกสีตามโจทย์
+                    if (closestMatch === currentTarget.name) {
+                        score += 10;
+                        nextTurn();
+                    }
+                } else {
+                    detectedColorText = "ไม่พบวัตถุสีเด่นชัดในเป้า";
+                }
+
+                // 5. วาดแผง UI ทับลงไปบนหน้าจอเกม
+                drawUI(cx, cy, r, g, b);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // วาดส่วนติดต่อผู้ใช้งาน
+        function drawUI(cx, cy, r, g, b) {
+            // แถบโจทย์ด้านบน
+            ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+            ctx.fillRect(15, 15, canvas.width - 30, 60);
+
+            ctx.fillStyle = "#fff";
+            ctx.font = "bold 20px sans-serif";
+            ctx.textAlign = "left";
+            ctx.fillText(`คะแนน: ${score}`, 35, 52);
+
+            if (currentTarget) {
+                ctx.textAlign = "right";
+                ctx.fillStyle = currentTarget.hex;
+                ctx.fillText(`โจทย์: [ ${currentTarget.thName.split(' ')[0]} ]`, canvas.width - 35, 52);
+            }
+
+            // วาดเป้าเล็งตรงกลาง (🎯)
+            ctx.strokeStyle = "#f1c40f";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 25, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // จุดสีกลมๆ เล็กๆ แสดงสีที่กล้องกำลังเห็นอยู่ ณ ตอนนี้
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // แถบสถานะด้านล่าง
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+            ctx.fillRect(15, canvas.height - 55, canvas.width - 30, 40);
+            
+            ctx.fillStyle = "#fff";
+            ctx.font = "16px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(`วัตถุในเป้าเล็ง: ${detectedColorText}`, canvas.width / 2, canvas.height - 30);
+        }
+
+        // สั่งให้ระบบทำงานทันทีที่เปิดหน้าเว็บ
+        window.addEventListener('DOMContentLoaded', startCamera);
     </script>
 </body>
 </html>
