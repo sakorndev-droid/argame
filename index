@@ -11,7 +11,7 @@
             margin: 0;
             padding: 0;
             background-color: #f4f7f6;
-            font-family: 'Kanit', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -20,164 +20,182 @@
         }
         h1 {
             color: #2c3e50;
-            margin-bottom: 5px;
+            margin: 10px 0 5px 0;
+            font-size: 24px;
         }
         .instruction {
             color: #555;
             margin-bottom: 15px;
-            font-size: 16px;
+            font-size: 14px;
             text-align: center;
+            padding: 0 10px;
         }
         #canvas-container {
             border-radius: 15px;
             overflow: hidden;
             box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            position: relative;
+        }
+        /* ซ่อนแท็ก video หลักเพื่อไม่ให้มันแสดงซ้อนกัน */
+        #webcam-video {
+            display: none;
         }
     </style>
 </head>
 <body>
 
-    <h1>เกมหยิบขยะลงถัง ♻️</h1>
+    <h1>เกมหยิบขยะลงถัง AR ♻️</h1>
     <div class="instruction">
-        <strong>วิธีเล่น:</strong> ดูโจทย์ด้านบน แล้วหยิบวัตถุที่มี <strong>"สี"</strong> ตรงกับถังขยะมาจ่อที่หน้ากล้อง!<br>
+        <strong>วิธีเล่น:</strong> นำวัตถุที่มี <strong>"สีตรงกับโจทย์"</strong> มาจ่อที่วงกลมตรงกลางเป้าเล็งบนจอ!<br>
         🔵 พลาสติก (สีน้ำเงิน) | 🟢 กระดาษ (สีเขียว) | 🔴 แก้ว/อันตราย (สีแดง)
     </div>
     
+    <video id="webcam-video" autoplay playsinline muted></video>
     <div id="canvas-container"></div>
 
     <script>
-        let webcam;
+        let videoElement;
         let score = 0;
         let currentTarget = "";
-        let detectedColorName = "ไม่พบวัตถุ";
+        let detectedColorName = "กำลังเริ่มระบบกล้อง...";
         
-        // กำหนดช่วงสีที่จะตรวจจับ (RGB)
+        // ช่วงสีเป้าหมาย [R, G, B]
         const targets = [
-            { name: "Plastic", color: [0, 0, 255], thName: "พลาสติก (สีน้ำเงิน)", hex: "#3498db" },
-            { name: "Paper", color: [0, 255, 0], thName: "กระดาษ (สีเขียว)", hex: "#2ecc71" },
-            { name: "Glass", color: [255, 0, 0], thName: "แก้ว/อันตราย (สีแดง)", hex: "#e74c3c" }
+            { name: "Plastic", color: [0, 100, 255], thName: "พลาสติก (สีน้ำเงิน)", hex: "#3498db" },
+            { name: "Paper", color: [0, 200, 100], thName: "กระดาษ (สีเขียว)", hex: "#2ecc71" },
+            { name: "Glass", color: [255, 50, 50], thName: "แก้ว/อันตราย (สีแดง)", hex: "#e74c3c" }
         ];
 
         function setup() {
-            let canvas = createCanvas(640, 480);
+            // สร้างพื้นที่สำหรับเล่นเกมขนาดเหมาะสมกับมือถือและคอมพิวเตอร์
+            let canvasW = min(windowWidth - 20, 640);
+            let canvasH = (canvasW / 4) * 3; // สัดส่วน 4:3
+            let canvas = createCanvas(canvasW, canvasH);
             canvas.parent('canvas-container');
             
-            // เปิดกล้องทันที
-            webcam = createCapture(VIDEO);
-            webcam.size(640, 480);
-            webcam.hide();
+            // ดึง Element วิดีโอเพื่อสั่งเปิดกล้องผ่านระบบของเบราว์เซอร์โดยตรง
+            videoElement = document.getElementById('webcam-video');
             
-            // สุ่มโจทย์แรก
+            // ขอกล้องจากอุปกรณ์ (รองรับทั้งคอมและมือถือ)
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } // ใช้กล้องหลังถ้าเล่นบนมือถือ
+                })
+                .then(function(stream) {
+                    videoElement.srcObject = stream;
+                    videoElement.play();
+                })
+                .catch(function(err) {
+                    alert("ไม่สามารถเปิดกล้องได้: " + err.name + " กรุณาตรวจสอบการอนุญาตสิทธิ์สิทธิ์กล้อง");
+                });
+            } else {
+                alert("เบราว์เซอร์นี้ไม่สนับสนุนการเปิดกล้องผ่านเว็บ");
+            }
+            
             nextTurn();
         }
 
         function draw() {
-            // วาดภาพกล้อง (แบบกลับด้านให้เหมือนกระจก จะได้ไม่งงเวลากระดิกมือ)
-            translate(width, 0);
-            scale(-1, 1);
-            image(webcam, 0, 0, width, height);
-            translate(width, 0);
-            scale(-1, 1);
+            // ดึงภาพจากวิดีโอมาวาดลงในหน้าเกม p5.js
+            if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+                image(videoElement, 0, 0, width, height);
+                // วิเคราะห์และตรวจจับสีจากตรงกลางจอ
+                analyzeCenterColor();
+            } else {
+                // หน้าจอดำระหว่างรอกล้องทำงาน
+                background(0);
+                fill(255);
+                textAlign(CENTER, CENTER);
+                textSize(16);
+                text("กำลังเชื่อมต่อกล้อง...", width/2, height/2);
+            }
 
-            // วิเคราะห์สีที่อยู่ "ตรงกลางจอ"
-            analyzeCenterColor();
-
-            // วาด UI เกม
+            // วาดเมนูและโจทย์บนจอ
             drawUI();
         }
 
         function analyzeCenterColor() {
-            webcam.loadPixels();
-            if (webcam.pixels.length > 0) {
-                // ดึงค่าสีจากจุดตรงกลางของกล้อง (X: 320, Y: 240)
-                let cx = webcam.width / 2;
-                let cy = webcam.height / 2;
-                let loc = (cx + cy * webcam.width) * 4;
-                
-                let r = webcam.pixels[loc];
-                let g = webcam.pixels[loc+1];
-                let b = webcam.pixels[loc+2];
+            // ดึงข้อมูลพิกเซลของเฟรมภาพปัจจุบัน
+            loadPixels();
+            
+            let cx = floor(width / 2);
+            let cy = floor(height / 2);
+            
+            // หาจุดพิกเซลตรงกลางในอาร์เรย์ pixels
+            let dRatio = pixelDensity();
+            let idx = 4 * ((cy * dRatio) * (width * dRatio) + (cx * dRatio));
+            
+            let r = pixels[idx];
+            let g = pixels[idx+1];
+            let b = pixels[idx+2];
 
-                // วาดเป้าเล็งตรงกลางจอ
-                noFill();
-                stroke(255, 255, 0);
-                strokeWeight(3);
-                ellipse(cx, cy, 30, 30);
-                fill(r, g, b);
-                ellipse(cx, cy, 10, 10);
+            // วาดวงกลมเป้าเล็งตรงกลางจอ
+            noFill();
+            stroke(255, 255, 0);
+            strokeWeight(3);
+            ellipse(cx, cy, 40, 40);
+            fill(r, g, b);
+            noStroke();
+            ellipse(cx, cy, 15, 15);
 
-                // ค้นหาสีที่ใกล้เคียงที่สุด
-                let closestMatch = "None";
-                let recordDistance = 1000; // ค่าตั้งต้นสูงๆ
+            // คำนวณสีที่นำมาจ่อว่าใกล้เคียงถังขยะใบไหนที่สุด
+            let closestMatch = "None";
+            let recordDistance = 999;
 
-                for (let t of targets) {
-                    // คำนวณระยะห่างของสี (Color Distance)
-                    let d = dist(r, g, b, t.color[0], t.color[1], t.color[2]);
-                    if (d < recordDistance && d < 150) { // 150 คือค่าความไวในการตรวจจับ
-                        recordDistance = d;
-                        closestMatch = t.name;
-                    }
+            for (let t of targets) {
+                let d = dist(r, g, b, t.color[0], t.color[1], t.color[2]);
+                // ระยะห่างของความเพี้ยนสี ยิ่งน้อยยิ่งใกล้เคียง (ตั้งไว้ไม่เกิน 140)
+                if (d < recordDistance && d < 140) {
+                    recordDistance = d;
+                    closestMatch = t.name;
                 }
+            }
 
-                // อัปเดตสถานะสีที่พบ
-                if (closestMatch !== "None") {
-                    let matchedObj = targets.find(t => t.name === closestMatch);
-                    detectedColorName = matchedObj.thName;
+            if (closestMatch !== "None") {
+                let matchedObj = targets.find(t => t.name === closestMatch);
+                detectedColorName = matchedObj.thName;
 
-                    // ถ้าสีที่อมตรงกับโจทย์ ได้คะแนนทันที!
-                    if (closestMatch === currentTarget.name) {
-                        score += 10;
-                        nextTurn();
-                    }
-                } else {
-                    detectedColorName = "ไม่พบวัตถุสีเด่นชัด";
+                // ตอบถูก -> บวกคะแนน -> สุ่มโจทย์ใหม่
+                if (closestMatch === currentTarget.name) {
+                    score += 10;
+                    nextTurn();
                 }
+            } else {
+                detectedColorName = "ไม่พบวัตถุสีเด่นชัด";
             }
         }
 
         function drawUI() {
-            // แถบโจทย์บน
+            // กล่องโจทย์ด้านบน
             fill(0, 0, 0, 180);
-            noStroke();
-            rect(10, 10, 620, 60, 10);
+            rect(10, 10, width - 20, 50, 8);
             
             fill(255);
-            textSize(22);
+            textSize(width > 400 ? 16 : 12);
             textAlign(LEFT, CENTER);
-            text(`คะแนน: ${score}`, 30, 40);
+            text(`คะแนน: ${score}`, 25, 35);
             
             textAlign(RIGHT, CENTER);
             fill(currentTarget.hex);
-            text(`โจทย์: เอาขยะ [ ${currentTarget.thName} ] มาจ่อตรงกลาง!`, 610, 40);
+            text(`โจทย์: [ ${currentTarget.thName.split(' ')[0]} ]`, width - 25, 35);
 
-            // ถังขยะด้านล่างแสดงสัญลักษณ์สี
-            let binW = 120;
-            let binH = 80;
-            let startX = 60;
-            
-            for (let i = 0; i < targets.length; i++) {
-                let t = targets[i];
-                fill(t.hex);
-                rect(startX + (i * 190), 380, binW, binH, 8);
-                
-                fill(255);
-                textSize(16);
-                textAlign(CENTER, CENTER);
-                text(t.thName.split(' ')[0], startX + (i * 190) + binW/2, 420);
-            }
-
-            // แสดงผลลัพธ์การตรวจจับแบบ Real-time
+            // แสดงสถานะด้านล่างเป้าหมาย
             fill(0, 0, 0, 150);
-            rect(10, 80, 250, 35, 5);
+            rect(10, height - 45, width - 20, 35, 5);
             fill(255);
-            textSize(14);
-            textAlign(LEFT, CENTER);
-            text(`วัตถุตรงเป้าเล็ง: ${detectedColorName}`, 20, 97);
+            textSize(13);
+            textAlign(CENTER, CENTER);
+            text(`วัตถุตรงเป้า: ${detectedColorName}`, width / 2, height - 28);
         }
 
         function nextTurn() {
-            // สุ่มประเภทขยะรอบถัดไป
             currentTarget = random(targets);
+        }
+        
+        function windowResized() {
+            let canvasW = min(windowWidth - 20, 640);
+            let canvasH = (canvasW / 4) * 3;
+            resizeCanvas(canvasW, canvasH);
         }
     </script>
 </body>
