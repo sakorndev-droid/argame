@@ -3,727 +3,574 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AR เก็บขยะ - คัดแยกขยะ</title>
+<title>AR เก็บขยะ</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #0a0a0a; font-family: 'Kanit', 'Sarabun', sans-serif; overflow: hidden; }
-
-  #app { position: relative; width: 100vw; height: 100vh; }
-
-  #video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); z-index: 0; }
-
-  #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-
-  #gameCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; }
-
-  /* HUD */
-  #hud {
-    position: absolute; top: 0; left: 0; width: 100%; z-index: 10;
-    display: flex; justify-content: space-between; align-items: flex-start;
-    padding: 16px 20px; pointer-events: none;
-  }
-  .score-panel {
-    background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.15); border-radius: 16px;
-    padding: 10px 20px; color: #fff; text-align: center;
-  }
-  .score-panel .label { font-size: 13px; opacity: 0.7; letter-spacing: 1px; }
-  .score-panel .value { font-size: 32px; font-weight: 700; line-height: 1.1; }
-
-  /* Bin score badges */
-  #bin-scores {
-    position: absolute; bottom: 165px; left: 0; width: 100%;
-    display: flex; justify-content: space-around; padding: 0 10px;
-    z-index: 10; pointer-events: none;
-  }
-  .bin-badge {
-    background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
-    border-radius: 12px; padding: 4px 12px; color: #fff;
-    font-size: 13px; font-weight: 600; border: 1px solid rgba(255,255,255,0.12);
-    text-align: center; min-width: 52px;
-  }
-
-  /* Start screen */
-  #startScreen {
-    position: absolute; inset: 0; z-index: 20;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    background: linear-gradient(135deg, rgba(0,20,40,0.92) 0%, rgba(0,40,20,0.92) 100%);
-    backdrop-filter: blur(4px);
-  }
-  #startScreen h1 {
-    font-size: clamp(28px, 6vw, 52px); font-weight: 800; color: #fff;
-    text-shadow: 0 0 40px rgba(100,255,150,0.6); margin-bottom: 8px;
-    text-align: center;
-  }
-  #startScreen p {
-    color: rgba(255,255,255,0.7); font-size: 16px; margin-bottom: 30px;
-    text-align: center; max-width: 400px; line-height: 1.6;
-  }
-  .btn-start {
-    background: linear-gradient(135deg, #00e676, #00bcd4);
-    border: none; border-radius: 50px; padding: 16px 48px;
-    font-size: 20px; font-weight: 700; color: #000; cursor: pointer;
-    box-shadow: 0 0 30px rgba(0,230,118,0.5);
-    transition: transform 0.15s, box-shadow 0.15s;
-  }
-  .btn-start:hover { transform: scale(1.05); box-shadow: 0 0 50px rgba(0,230,118,0.8); }
-
-  /* End screen */
-  #endScreen {
-    position: absolute; inset: 0; z-index: 20;
-    display: none; flex-direction: column; align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
-  }
-  #endScreen h2 { font-size: 40px; color: #fff; margin-bottom: 12px; }
-  #endScreen .big-score { font-size: 80px; font-weight: 800; color: #00e676; line-height: 1; }
-  #endScreen p { color: rgba(255,255,255,0.6); font-size: 18px; margin: 12px 0 28px; }
-
-  /* Camera permission */
-  #permScreen {
-    position: absolute; inset: 0; z-index: 30;
-    display: none; flex-direction: column; align-items: center; justify-content: center;
-    background: #0a0a0a; color: #fff; text-align: center; padding: 40px;
-  }
-  #permScreen h2 { font-size: 24px; margin-bottom: 12px; }
-  #permScreen p { color: rgba(255,255,255,0.6); line-height: 1.7; }
-
-  /* Floating score popup */
-  .score-pop {
-    position: absolute; font-size: 28px; font-weight: 800; pointer-events: none;
-    z-index: 15; animation: popUp 1s ease-out forwards; text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-  }
-  @keyframes popUp {
-    0%   { transform: translateY(0) scale(1); opacity: 1; }
-    100% { transform: translateY(-80px) scale(1.3); opacity: 0; }
-  }
-
-  /* Progress bar */
-  #progressWrap {
-    position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
-    z-index: 10; width: min(340px, 80vw); pointer-events: none;
-  }
-  .prog-bar-bg {
-    height: 8px; background: rgba(255,255,255,0.15); border-radius: 8px; overflow: hidden;
-  }
-  .prog-bar-fill {
-    height: 100%; border-radius: 8px;
-    background: linear-gradient(90deg, #00e676, #00bcd4);
-    transition: width 0.4s ease;
-  }
-  .prog-label { color: rgba(255,255,255,0.5); font-size: 11px; text-align: right; margin-top: 3px; }
-
-  canvas { display: block; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; overflow:hidden; font-family:'Kanit','Sarabun',sans-serif; }
+#app { position:relative; width:100vw; height:100vh; }
+#video {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  object-fit:cover; transform:scaleX(-1); z-index:0;
+}
+#gameCanvas {
+  position:absolute; top:0; left:0; width:100%; height:100%; z-index:2;
+}
+#hud {
+  position:absolute; top:0; left:0; width:100%; z-index:10;
+  display:flex; justify-content:space-between; align-items:flex-start;
+  padding:14px 16px; pointer-events:none;
+}
+.panel {
+  background:rgba(0,0,0,0.65); backdrop-filter:blur(10px);
+  border:1.5px solid rgba(255,255,255,0.18); border-radius:14px;
+  padding:8px 18px; color:#fff; text-align:center; min-width:80px;
+}
+.panel .lbl { font-size:12px; opacity:0.65; letter-spacing:1px; }
+.panel .val { font-size:30px; font-weight:800; line-height:1.1; }
+#progWrap {
+  position:absolute; top:76px; left:50%; transform:translateX(-50%);
+  z-index:10; width:min(360px,82vw); pointer-events:none;
+}
+.pbar { height:9px; background:rgba(255,255,255,0.14); border-radius:8px; overflow:hidden; }
+.pfill { height:100%; border-radius:8px; background:linear-gradient(90deg,#00e676,#00bcd4); transition:width .35s; }
+.plbl { color:rgba(255,255,255,0.45); font-size:11px; text-align:right; margin-top:3px; }
+.score-pop {
+  position:absolute; font-size:30px; font-weight:800; pointer-events:none;
+  z-index:15; animation:popUp .9s ease-out forwards; text-shadow:0 2px 8px rgba(0,0,0,.9);
+}
+@keyframes popUp {
+  0%   { transform:translateY(0) scale(1); opacity:1; }
+  100% { transform:translateY(-90px) scale(1.4); opacity:0; }
+}
+/* Screens */
+.screen {
+  position:absolute; inset:0; z-index:20;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+#startScreen { background:linear-gradient(135deg,rgba(0,15,35,.93),rgba(0,35,15,.93)); backdrop-filter:blur(4px); }
+#startScreen h1 { font-size:clamp(26px,5vw,50px); font-weight:800; color:#fff; text-shadow:0 0 40px rgba(80,255,130,.7); margin-bottom:8px; text-align:center; }
+#startScreen p { color:rgba(255,255,255,.7); font-size:15px; margin-bottom:28px; text-align:center; line-height:1.7; }
+#endScreen { background:rgba(0,0,0,.88); backdrop-filter:blur(8px); display:none; }
+#endScreen h2 { font-size:38px; color:#fff; margin-bottom:8px; }
+.big-score { font-size:82px; font-weight:800; color:#00e676; line-height:1; }
+#endScreen p { color:rgba(255,255,255,.6); font-size:17px; margin:10px 0 26px; text-align:center; }
+.btn {
+  background:linear-gradient(135deg,#00e676,#00bcd4); border:none; border-radius:50px;
+  padding:15px 46px; font-size:19px; font-weight:700; color:#000; cursor:pointer;
+  box-shadow:0 0 28px rgba(0,230,118,.5); transition:transform .15s;
+}
+.btn:hover { transform:scale(1.06); }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 <div id="app">
   <video id="video" autoplay playsinline muted></video>
-  <canvas id="overlay"></canvas>
   <canvas id="gameCanvas"></canvas>
 
-  <!-- HUD -->
   <div id="hud">
-    <div class="score-panel">
-      <div class="label">คะแนน</div>
-      <div class="value" id="scoreDisplay">0</div>
-    </div>
-    <div class="score-panel">
-      <div class="label">เป้าหมาย</div>
-      <div class="value">40</div>
-    </div>
-    <div class="score-panel">
-      <div class="label">เวลา</div>
-      <div class="value" id="timerDisplay">90</div>
-    </div>
+    <div class="panel"><div class="lbl">คะแนน</div><div class="val" id="scoreDisp">0</div></div>
+    <div class="panel"><div class="lbl">เป้าหมาย</div><div class="val">40</div></div>
+    <div class="panel"><div class="lbl">เวลา</div><div class="val" id="timerDisp">90</div></div>
+  </div>
+  <div id="progWrap">
+    <div class="pbar"><div class="pfill" id="pfill" style="width:0%"></div></div>
+    <div class="plbl" id="plbl">0 / 40</div>
   </div>
 
-  <div id="progressWrap">
-    <div class="prog-bar-bg"><div class="prog-bar-fill" id="progressBar" style="width:0%"></div></div>
-    <div class="prog-label" id="progressLabel">0 / 40</div>
-  </div>
-
-  <div id="bin-scores">
-    <div class="bin-badge" id="badge-wet">💧 0/10</div>
-    <div class="bin-badge" id="badge-dry">🌿 0/10</div>
-    <div class="bin-badge" id="badge-haz">☢️ 0/10</div>
-    <div class="bin-badge" id="badge-rec">♻️ 0/10</div>
-  </div>
-
-  <!-- Start Screen -->
-  <div id="startScreen">
-    <div style="font-size:64px;margin-bottom:16px">♻️</div>
+  <div id="startScreen" class="screen">
+    <div style="font-size:62px;margin-bottom:14px">♻️</div>
     <h1>AR เก็บขยะ</h1>
-    <p>ใช้มือหยิบขยะที่หล่นลงมา<br>แล้วโยนลงถังให้ถูกประเภท<br>ทำคะแนนให้ครบ 40 คะแนน!</p>
-    <button class="btn-start" id="btnStart">🎮 เริ่มเกม</button>
-    <div style="margin-top:20px;color:rgba(255,255,255,0.4);font-size:13px">ต้องการกล้อง • รองรับ AR มือ</div>
+    <p>ใช้มือหยิบขยะที่หล่นลงมา<br>โยนใส่ถังให้ถูกประเภท<br>ทำคะแนนให้ครบ <strong>40 คะแนน</strong>!</p>
+    <button class="btn" id="btnStart">🎮 เริ่มเกม</button>
+    <div style="margin-top:18px;color:rgba(255,255,255,.35);font-size:12px">ใช้กล้อง AR • นิ้วมือ Pinch หยิบขยะ</div>
   </div>
-
-  <!-- End Screen -->
-  <div id="endScreen">
-    <div style="font-size:56px">🏆</div>
-    <h2 style="color:#fff">จบเกม!</h2>
+  <div id="endScreen" class="screen">
+    <div style="font-size:54px">🏆</div>
+    <h2>จบเกม!</h2>
     <div class="big-score" id="finalScore">0</div>
-    <p id="resultText">คะแนน</p>
-    <button class="btn-start" id="btnRestart">🔄 เล่นอีกครั้ง</button>
-  </div>
-
-  <!-- Perm Error -->
-  <div id="permScreen">
-    <div style="font-size:48px">📷</div>
-    <h2>ต้องการกล้อง</h2>
-    <p>กรุณาอนุญาตการใช้กล้อง<br>แล้วรีเฟรชหน้าใหม่</p>
+    <p id="resultTxt"></p>
+    <button class="btn" id="btnRestart">🔄 เล่นอีกครั้ง</button>
   </div>
 </div>
 
-<!-- MediaPipe Hands -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074/camera_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1620248257/drawing_utils.js" crossorigin="anonymous"></script>
-
 <script>
-// ─────────────────────────────────────────
-//  CONSTANTS & CONFIG
-// ─────────────────────────────────────────
-const TOTAL_SCORE = 40;
-const PER_BIN = 10;
-const GAME_TIME = 90; // seconds
+// ══════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════
+const TOTAL  = 40;
+const PBIN   = 10;
+const GTIME  = 90;
 
-const BIN_TYPES = ['wet','dry','haz','rec'];
-const BIN_LABELS = { wet:'เปียก', dry:'แห้ง', haz:'อันตราย', rec:'รีไซเคิล' };
-const BIN_COLORS = { wet:'#2196F3', dry:'#8BC34A', haz:'#FF5722', rec:'#FFD600' };
-const BIN_EMOJI  = { wet:'💧', dry:'🌿', haz:'☢️', rec:'♻️' };
-
-// Trash items with category
-const TRASH_ITEMS = [
-  // Wet
-  { emoji:'🍌', label:'กล้วย',    type:'wet',  color:'#FFD600' },
-  { emoji:'🍎', label:'แอปเปิ้ล', type:'wet',  color:'#E53935' },
-  { emoji:'🍖', label:'กระดูก',   type:'wet',  color:'#BCAAA4' },
-  { emoji:'🥬', label:'ผัก',      type:'wet',  color:'#43A047' },
-  { emoji:'🍚', label:'ข้าว',     type:'wet',  color:'#FFF9C4' },
-  // Dry
-  { emoji:'📄', label:'กระดาษ',   type:'dry',  color:'#90CAF9' },
-  { emoji:'🧻', label:'ทิชชู่',   type:'dry',  color:'#F5F5F5' },
-  { emoji:'👕', label:'เสื้อผ้า', type:'dry',  color:'#CE93D8' },
-  { emoji:'🪵', label:'ไม้',      type:'dry',  color:'#A1887F' },
-  { emoji:'🧦', label:'ถุงเท้า',  type:'dry',  color:'#80CBC4' },
-  // Hazardous
-  { emoji:'🔋', label:'ถ่าน',     type:'haz',  color:'#FFCA28' },
-  { emoji:'💊', label:'ยา',       type:'haz',  color:'#EF9A9A' },
-  { emoji:'🧴', label:'สารเคมี',  type:'haz',  color:'#80DEEA' },
-  { emoji:'💡', label:'หลอดไฟ',   type:'haz',  color:'#FFF59D' },
-  { emoji:'🩺', label:'เข็มฉีดยา',type:'haz',  color:'#B0BEC5' },
-  // Recycle
-  { emoji:'🥤', label:'ขวดพลาสติก',type:'rec', color:'#4FC3F7' },
-  { emoji:'🫙', label:'กระป๋อง',  type:'rec',  color:'#B0BEC5' },
-  { emoji:'📦', label:'กล่อง',    type:'rec',  color:'#FFCC80' },
-  { emoji:'🍾', label:'ขวดแก้ว',  type:'rec',  color:'#A5D6A7' },
-  { emoji:'📰', label:'หนังสือพิมพ์',type:'rec',color:'#E0E0E0' },
+const BINS = [
+  { type:'wet', label:'เปียก',    emoji:'💧', colors:['#1565C0','#1976D2','#42A5F5'], lid:'#0D47A1' },
+  { type:'dry', label:'แห้ง',    emoji:'🌿', colors:['#2E7D32','#388E3C','#66BB6A'], lid:'#1B5E20' },
+  { type:'haz', label:'อันตราย', emoji:'⚠️', colors:['#BF360C','#D84315','#FF7043'], lid:'#870000' },
+  { type:'rec', label:'รีไซเคิล',emoji:'♻️', colors:['#F57F17','#F9A825','#FFEE58'], lid:'#E65100' },
 ];
 
-// ─────────────────────────────────────────
+const TRASH = [
+  { e:'🍌', l:'กล้วย',       t:'wet', c:'#FFD600' },
+  { e:'🍎', l:'แอปเปิ้ล',   t:'wet', c:'#E53935' },
+  { e:'🍖', l:'กระดูก',     t:'wet', c:'#BCAAA4' },
+  { e:'🥬', l:'ผัก',        t:'wet', c:'#43A047' },
+  { e:'🍚', l:'ข้าวเหลือ',  t:'wet', c:'#FFF9C4' },
+  { e:'📄', l:'กระดาษ',     t:'dry', c:'#90CAF9' },
+  { e:'🧻', l:'ทิชชู่',     t:'dry', c:'#EEEEEE' },
+  { e:'👕', l:'เสื้อผ้า',   t:'dry', c:'#CE93D8' },
+  { e:'🪵', l:'ไม้',        t:'dry', c:'#A1887F' },
+  { e:'🧦', l:'ถุงเท้า',    t:'dry', c:'#80CBC4' },
+  { e:'🔋', l:'ถ่าน',       t:'haz', c:'#FFCA28' },
+  { e:'💊', l:'ยา',         t:'haz', c:'#EF9A9A' },
+  { e:'🧴', l:'สารเคมี',    t:'haz', c:'#80DEEA' },
+  { e:'💡', l:'หลอดไฟ',     t:'haz', c:'#FFF59D' },
+  { e:'🩺', l:'เข็มฉีดยา',  t:'haz', c:'#B0BEC5' },
+  { e:'🥤', l:'ขวดพลาสติก', t:'rec', c:'#4FC3F7' },
+  { e:'🫙', l:'กระป๋อง',    t:'rec', c:'#CFD8DC' },
+  { e:'📦', l:'กล่อง',      t:'rec', c:'#FFCC80' },
+  { e:'🍾', l:'ขวดแก้ว',    t:'rec', c:'#A5D6A7' },
+  { e:'📰', l:'หนังสือพิมพ์',t:'rec', c:'#E0E0E0' },
+];
+
+// ══════════════════════════════════════════
 //  STATE
-// ─────────────────────────────────────────
-let score = 0;
-let binScores = { wet:0, dry:0, haz:0, rec:0 };
-let gameRunning = false;
-let gameOver = false;
-let timeLeft = GAME_TIME;
-let timerInterval = null;
-let fallingTrash = [];
-let trashIdCounter = 0;
-let spawnInterval = null;
-let heldTrash = null; // { id }
-let handPos = { x: -1, y: -1, pinching: false };
-let lastPinch = false;
-let W = 0, H = 0;
+// ══════════════════════════════════════════
+let W=0, H=0;
+let score=0, binSc={wet:0,dry:0,haz:0,rec:0};
+let running=false, timeLeft=GTIME;
+let items=[], idxCnt=0, held=null, lastPinch=false;
+let timerIv=null, spawnIv=null;
+let hand={x:-1,y:-1,pinch:false};
+let animId=null;
 
-// ─────────────────────────────────────────
-//  CANVAS SETUP
-// ─────────────────────────────────────────
-const video     = document.getElementById('video');
-const overlay   = document.getElementById('overlay');
-const gameCanvas= document.getElementById('gameCanvas');
-const octx      = overlay.getContext('2d');
-const gctx      = gameCanvas.getContext('2d');
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+const video  = document.getElementById('video');
 
-function resize() {
-  W = window.innerWidth; H = window.innerHeight;
-  overlay.width = gameCanvas.width = W;
-  overlay.height= gameCanvas.height= H;
+function resize(){
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
 }
 window.addEventListener('resize', resize);
 resize();
 
-// ─────────────────────────────────────────
-//  TRASH OBJECT
-// ─────────────────────────────────────────
-function createTrash() {
-  const item = TRASH_ITEMS[Math.floor(Math.random() * TRASH_ITEMS.length)];
-  const size = Math.min(W, H) * 0.085 + 20; // ~72–100px
-  return {
-    id: trashIdCounter++,
-    ...item,
-    x: size + Math.random() * (W - size * 2),
-    y: -size,
-    vy: 0.8 + Math.random() * 1.0,
-    size,
-    held: false,
-    thrown: false,
-    dead: false,
-    wobble: Math.random() * Math.PI * 2,
-  };
-}
-
-function spawnTrash() {
-  if (fallingTrash.length < 6) {
-    fallingTrash.push(createTrash());
-  }
-}
-
-// ─────────────────────────────────────────
-//  BINS (bottom area)
-// ─────────────────────────────────────────
-function getBins() {
-  const bW = W / 4;
-  const bH = H * 0.18;
-  const bY = H - bH;
-  return BIN_TYPES.map((type, i) => ({
-    type,
-    x: i * bW,
-    y: bY,
-    w: bW,
-    h: bH,
-    cx: i * bW + bW / 2,
-    cy: bY + bH / 2,
+// ══════════════════════════════════════════
+//  BIN GEOMETRY
+// ══════════════════════════════════════════
+function getBinRects(){
+  const bw = W/4, bh = Math.min(H*0.22, 160);
+  return BINS.map((b,i)=>({
+    ...b,
+    x: i*bw, y: H-bh, w: bw, h: bh,
+    cx: i*bw + bw/2
   }));
 }
 
-// ─────────────────────────────────────────
-//  DRAW BINS
-// ─────────────────────────────────────────
-function drawBins(ctx) {
-  const bins = getBins();
-  bins.forEach((bin, i) => {
-    const col = BIN_COLORS[bin.type];
-    const col2 = shadeColor(col, -40);
+// ══════════════════════════════════════════
+//  DRAW BINS — realistic 3D trash cans
+// ══════════════════════════════════════════
+function drawBins(){
+  const rects = getBinRects();
+  rects.forEach(b=>{
+    const {x,y,w,h,colors,lid,emoji,label,type} = b;
+    const cx = x+w/2;
+    const bx = x+w*0.12, bw2 = w*0.76;
+    const tx = x+w*0.08, tw  = w*0.84;
+    const lidH = h*0.10;
+    const bodyH = h*0.76;
+    const bodyY = y+lidH+h*0.04;
+    const bottomW = bw2*0.82;
+    const bottomX = cx - bottomW/2;
 
-    // Shadow
-    ctx.shadowColor = col + '88';
-    ctx.shadowBlur  = 18;
+    // ── shadow
+    ctx.save();
+    ctx.shadowColor='rgba(0,0,0,0.5)';
+    ctx.shadowBlur=18; ctx.shadowOffsetY=6;
 
-    // Bin body gradient
-    const grad = ctx.createLinearGradient(bin.x, bin.y, bin.x + bin.w, bin.y + bin.h);
-    grad.addColorStop(0, col + 'cc');
-    grad.addColorStop(1, col2 + 'ee');
-    ctx.fillStyle = grad;
-
-    // Rounded top corners
+    // ── body trapezoid
+    const bodyGrad = ctx.createLinearGradient(x,0,x+w,0);
+    bodyGrad.addColorStop(0, colors[0]);
+    bodyGrad.addColorStop(0.4, colors[1]);
+    bodyGrad.addColorStop(1, colors[2]);
+    ctx.fillStyle = bodyGrad;
     ctx.beginPath();
-    ctx.moveTo(bin.x + 16, bin.y);
-    ctx.lineTo(bin.x + bin.w - 16, bin.y);
-    ctx.quadraticCurveTo(bin.x + bin.w, bin.y, bin.x + bin.w, bin.y + 16);
-    ctx.lineTo(bin.x + bin.w, bin.y + bin.h);
-    ctx.lineTo(bin.x, bin.y + bin.h);
-    ctx.lineTo(bin.x, bin.y + 16);
-    ctx.quadraticCurveTo(bin.x, bin.y, bin.x + 16, bin.y);
+    ctx.moveTo(tx, bodyY);
+    ctx.lineTo(tx+tw, bodyY);
+    ctx.lineTo(bottomX+bottomW, bodyY+bodyH);
+    ctx.lineTo(bottomX, bodyY+bodyH);
     ctx.closePath();
     ctx.fill();
 
-    // Lid line
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 3;
+    // body sheen (left highlight)
+    const sheen = ctx.createLinearGradient(x,0,x+w*0.5,0);
+    sheen.addColorStop(0,'rgba(255,255,255,0.22)');
+    sheen.addColorStop(0.35,'rgba(255,255,255,0.0)');
+    ctx.fillStyle=sheen;
     ctx.beginPath();
-    ctx.moveTo(bin.x + 6, bin.y + 14);
-    ctx.lineTo(bin.x + bin.w - 6, bin.y + 14);
+    ctx.moveTo(tx, bodyY);
+    ctx.lineTo(tx+tw*0.42, bodyY);
+    ctx.lineTo(bottomX+bottomW*0.42, bodyY+bodyH);
+    ctx.lineTo(bottomX, bodyY+bodyH);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+
+    // ── horizontal ridges
+    ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=2;
+    for(let r=1;r<=3;r++){
+      const ry = bodyY + bodyH*(r/4);
+      const rProgress = r/4;
+      const lx = tx + (bottomX-tx)*rProgress;
+      const rx2= tx+tw + (bottomX+bottomW - (tx+tw))*rProgress;
+      ctx.beginPath(); ctx.moveTo(lx+4,ry); ctx.lineTo(rx2-4,ry); ctx.stroke();
+    }
+
+    // ── bottom base
+    ctx.fillStyle=colors[0];
+    ctx.beginPath();
+    ctx.roundRect(bottomX, bodyY+bodyH-4, bottomW, 10, 4);
+    ctx.fill();
+
+    // ── LID
+    const lidGrad = ctx.createLinearGradient(x,y,x+w,y+lidH+8);
+    lidGrad.addColorStop(0, lighten(lid,30));
+    lidGrad.addColorStop(1, lid);
+    ctx.fillStyle=lidGrad;
+    ctx.shadowColor='rgba(0,0,0,0.4)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
+    ctx.beginPath();
+    ctx.roundRect(bx, y, bw2, lidH+6, [8,8,4,4]);
+    ctx.fill();
+    ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+
+    // lid shine
+    ctx.fillStyle='rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.roundRect(bx+6, y+3, bw2-12, lidH*0.5, 4);
+    ctx.fill();
+
+    // lid handle
+    ctx.fillStyle=lighten(lid,50);
+    ctx.beginPath();
+    ctx.roundRect(cx-14, y-6, 28, 10, 5);
+    ctx.fill();
+    ctx.strokeStyle=lid; ctx.lineWidth=1.5;
     ctx.stroke();
 
-    // Stripes accent
-    ctx.save();
-    ctx.rect(bin.x, bin.y, bin.w, bin.h);
-    ctx.clip();
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.lineWidth = 10;
-    for (let s = -bin.h; s < bin.w + bin.h; s += 24) {
-      ctx.beginPath();
-      ctx.moveTo(bin.x + s, bin.y);
-      ctx.lineTo(bin.x + s + bin.h, bin.y + bin.h);
-      ctx.stroke();
-    }
+    // ── emoji large
+    ctx.font = `${Math.min(w,h)*0.30}px serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=8;
+    ctx.fillText(emoji, cx, bodyY+bodyH*0.42);
+    ctx.shadowBlur=0;
+
+    // ── label
+    ctx.fillStyle='#fff';
+    ctx.font=`700 ${Math.max(11,w*0.115)}px Kanit,sans-serif`;
+    ctx.fillText(label, cx, bodyY+bodyH*0.78);
+
+    // ── score badge on lid
+    ctx.fillStyle='rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.roundRect(cx-22,y+2,44,lidH+2,6); ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.font=`700 ${Math.max(10,w*0.1)}px Kanit,sans-serif`;
+    ctx.fillText(`${binSc[type]}/${PBIN}`, cx, y+lidH*0.7+2);
+
+    // divider
+    ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(x+w,y); ctx.lineTo(x+w,H); ctx.stroke();
+
     ctx.restore();
-
-    // Emoji
-    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 6;
-    ctx.font = `${Math.min(bin.w, bin.h) * 0.38}px serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(BIN_EMOJI[bin.type], bin.cx, bin.y + bin.h * 0.42);
-    ctx.shadowBlur = 0;
-
-    // Label
-    ctx.fillStyle = '#fff';
-    ctx.font = `700 ${Math.max(11, bin.w * 0.12)}px Kanit, sans-serif`;
-    ctx.fillText(BIN_LABELS[bin.type], bin.cx, bin.y + bin.h * 0.78);
-
-    // Divider
-    if (i < 3) {
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(bin.x + bin.w, bin.y);
-      ctx.lineTo(bin.x + bin.w, bin.y + bin.h);
-      ctx.stroke();
-    }
   });
 }
 
-// ─────────────────────────────────────────
-//  DRAW TRASH
-// ─────────────────────────────────────────
-function drawTrashItem(ctx, t) {
-  const s = t.size;
-  const x = t.x, y = t.y;
-  const pulse = Math.sin(Date.now() / 600 + t.wobble) * 0.04;
-  const scale = t.held ? 1.18 + pulse : 1.0 + pulse * 0.5;
+function lighten(hex,amt){
+  let r=parseInt(hex.slice(1,3),16)+amt, g=parseInt(hex.slice(3,5),16)+amt, b=parseInt(hex.slice(5,7),16)+amt;
+  r=Math.min(255,r); g=Math.min(255,g); b=Math.min(255,b);
+  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+}
 
+// ══════════════════════════════════════════
+//  TRASH ITEM
+// ══════════════════════════════════════════
+function mkTrash(){
+  const d = TRASH[Math.floor(Math.random()*TRASH.length)];
+  const sz = Math.min(W,H)*0.10 + 22; // 80–110px
+  return {
+    id: idxCnt++,
+    ...d,
+    x: sz + Math.random()*(W-sz*2),
+    y: -sz*1.2,
+    vy: 1.2 + Math.random()*1.2,
+    sz,
+    held:false, dead:false,
+    phase: Math.random()*Math.PI*2
+  };
+}
+
+function drawTrash(t){
+  const s = t.sz;
+  const pulse = Math.sin(Date.now()/500 + t.phase)*0.035;
+  const sc = t.held ? 1.22+pulse : 1.0+pulse*0.4;
   ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(scale, scale);
+  ctx.translate(t.x, t.y);
+  ctx.scale(sc, sc);
 
-  // Glow when held
-  if (t.held) {
-    ctx.shadowColor = t.color;
-    ctx.shadowBlur  = 28;
-  }
+  if(t.held){ ctx.shadowColor=t.c; ctx.shadowBlur=32; }
 
-  // Circle background
-  const grad = ctx.createRadialGradient(-s*0.15, -s*0.15, 0, 0, 0, s * 0.62);
-  grad.addColorStop(0, lightenColor(t.color, 60));
-  grad.addColorStop(1, t.color + 'bb');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(0, 0, s * 0.58, 0, Math.PI * 2);
-  ctx.fill();
+  // circle bg
+  const g2 = ctx.createRadialGradient(-s*.15,-s*.15,0,0,0,s*.6);
+  g2.addColorStop(0, lighten(t.c,55));
+  g2.addColorStop(1, t.c+'bb');
+  ctx.fillStyle=g2;
+  ctx.beginPath(); ctx.arc(0,0,s*.58,0,Math.PI*2); ctx.fill();
 
-  // Border
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  ctx.lineWidth   = 2.5;
+  ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=2.5;
   ctx.stroke();
 
-  // Emoji
-  ctx.shadowBlur = 0;
-  ctx.font = `${s * 0.55}px serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(t.emoji, 0, 2);
+  ctx.shadowBlur=0;
 
-  // Label badge
-  if (s > 50) {
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    const lw = s * 0.9, lh = 18;
-    ctx.beginPath();
-    ctx.roundRect(-lw/2, s*0.52, lw, lh, 6);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.font = `600 ${Math.max(10, s*0.17)}px Kanit, sans-serif`;
-    ctx.fillText(t.label, 0, s * 0.52 + lh/2 + 1);
-  }
+  // emoji
+  ctx.font=`${s*.56}px serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(t.e, 0, 3);
+
+  // label
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  const lw=s*.95, lh=19;
+  ctx.beginPath(); ctx.roundRect(-lw/2, s*.5, lw, lh, 6); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.font=`600 ${Math.max(10,s*.17)}px Kanit,sans-serif`;
+  ctx.fillText(t.l, 0, s*.5+lh/2+1);
 
   ctx.restore();
 }
 
-// ─────────────────────────────────────────
-//  DRAW HAND CURSOR
-// ─────────────────────────────────────────
-function drawHandCursor(ctx) {
-  if (handPos.x < 0) return;
-  const r = handPos.pinching ? 18 : 24;
-  const col = handPos.pinching ? '#00e676' : '#ffffff';
-
+// ══════════════════════════════════════════
+//  HAND CURSOR
+// ══════════════════════════════════════════
+function drawHand(){
+  if(hand.x<0) return;
+  const r = hand.pinch ? 17:23;
+  const col = hand.pinch?'#00e676':'#ffffff';
   ctx.save();
-  ctx.globalAlpha = 0.9;
-  ctx.strokeStyle = col;
-  ctx.lineWidth   = 3;
-  ctx.shadowColor = col;
-  ctx.shadowBlur  = 16;
-
-  // Outer ring
+  ctx.strokeStyle=col; ctx.lineWidth=3;
+  ctx.shadowColor=col; ctx.shadowBlur=18;
+  ctx.beginPath(); ctx.arc(hand.x,hand.y,r,0,Math.PI*2); ctx.stroke();
   ctx.beginPath();
-  ctx.arc(handPos.x, handPos.y, r, 0, Math.PI * 2);
+  ctx.moveTo(hand.x-r-7,hand.y); ctx.lineTo(hand.x+r+7,hand.y);
+  ctx.moveTo(hand.x,hand.y-r-7); ctx.lineTo(hand.x,hand.y+r+7);
   ctx.stroke();
-
-  // Cross
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(handPos.x - r - 8, handPos.y);
-  ctx.lineTo(handPos.x + r + 8, handPos.y);
-  ctx.moveTo(handPos.x, handPos.y - r - 8);
-  ctx.lineTo(handPos.x, handPos.y + r + 8);
-  ctx.stroke();
-
-  if (handPos.pinching) {
-    ctx.fillStyle = col + '44';
-    ctx.beginPath();
-    ctx.arc(handPos.x, handPos.y, r, 0, Math.PI * 2);
-    ctx.fill();
+  if(hand.pinch){
+    ctx.fillStyle=col+'44';
+    ctx.beginPath(); ctx.arc(hand.x,hand.y,r,0,Math.PI*2); ctx.fill();
   }
   ctx.restore();
 }
 
-// ─────────────────────────────────────────
-//  COLOR UTILS
-// ─────────────────────────────────────────
-function shadeColor(hex, pct) {
-  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-  r = Math.max(0,Math.min(255, r+pct)); g = Math.max(0,Math.min(255, g+pct)); b = Math.max(0,Math.min(255, b+pct));
-  return `rgb(${r},${g},${b})`;
-}
-function lightenColor(hex, pct) { return shadeColor(hex.replace(/^rgba?\([^)]*\)/,'') || hex, pct); }
-
-// ─────────────────────────────────────────
+// ══════════════════════════════════════════
 //  GAME LOOP
-// ─────────────────────────────────────────
-let lastFrame = 0;
-function gameLoop(ts) {
-  if (!gameRunning) return;
-  const dt = ts - lastFrame; lastFrame = ts;
+// ══════════════════════════════════════════
+function loop(){
+  if(!running){ animId=null; return; }
+  ctx.clearRect(0,0,W,H);
+  drawBins();
 
-  gctx.clearRect(0, 0, W, H);
+  const bins = getBinRects();
 
-  // Draw bins
-  drawBins(gctx);
-
-  // Update + draw trash
-  const bins = getBins();
-  fallingTrash.forEach(t => {
-    if (t.dead) return;
-
-    if (!t.held) {
+  items.forEach(t=>{
+    if(t.dead) return;
+    if(!t.held){
       t.y += t.vy;
-      t.wobble += 0.02;
-      // Remove if off screen bottom (outside bin area)
-      if (t.y > H + t.size) { t.dead = true; return; }
+      if(t.y > H+t.sz){ t.dead=true; return; }
     } else {
-      // Follow hand
-      t.x += (handPos.x - t.x) * 0.28;
-      t.y += (handPos.y - t.y) * 0.28;
+      t.x += (hand.x - t.x)*0.3;
+      t.y += (hand.y - t.y)*0.3;
     }
+    drawTrash(t);
 
-    drawTrashItem(gctx, t);
-
-    // Check if dropped into bin
-    if (t.held && !handPos.pinching && lastPinch) {
-      // released — check bin collision
-      bins.forEach(bin => {
-        if (t.x > bin.x && t.x < bin.x + bin.w && t.y > bin.y) {
-          if (bin.type === t.type && binScores[bin.type] < PER_BIN) {
-            binScores[bin.type]++;
-            score++;
-            showScorePop(t.x, t.y, '+1', '#00e676');
+    // release detection
+    if(t.held && lastPinch && !hand.pinch){
+      let dropped=false;
+      bins.forEach(b=>{
+        if(!dropped && t.x>b.x && t.x<b.x+b.w && t.y>b.y-20){
+          dropped=true;
+          if(b.type===t.t && binSc[b.type]<PBIN){
+            binSc[b.type]++; score++;
+            pop(t.x,t.y,'+1','#00e676');
             updateHUD();
-          } else if (bin.type !== t.type) {
-            showScorePop(t.x, t.y, '✗', '#ff5252');
+          } else {
+            pop(t.x,t.y,'✗','#ff5252');
           }
-          t.dead = true;
-          heldTrash = null;
+          t.dead=true; held=null;
         }
       });
-      if (!t.dead) {
-        t.held = false;
-        heldTrash = null;
-      }
+      if(!dropped){ t.held=false; held=null; }
     }
   });
 
-  // Remove dead
-  fallingTrash = fallingTrash.filter(t => !t.dead);
+  items = items.filter(t=>!t.dead);
+  drawHand();
+  lastPinch = hand.pinch;
 
-  // Hand cursor on top
-  drawHandCursor(gctx);
-
-  lastPinch = handPos.pinching;
-
-  // Check win
-  if (score >= TOTAL_SCORE) { endGame(true); return; }
-
-  requestAnimationFrame(gameLoop);
+  if(score>=TOTAL){ endGame(true); return; }
+  animId = requestAnimationFrame(loop);
 }
 
-// ─────────────────────────────────────────
-//  HAND INTERACTION
-// ─────────────────────────────────────────
-function onHandResults(results) {
-  octx.clearRect(0, 0, W, H);
-  if (!gameRunning || !results.multiHandLandmarks?.length) {
-    handPos.pinching = false;
-    handPos.x = handPos.y = -1;
-    return;
-  }
-
-  const lm = results.multiHandLandmarks[0];
-
-  // Index tip = [8], Thumb tip = [4]
-  const ix = (1 - lm[8].x) * W;
-  const iy = lm[8].y * H;
-  const tx = (1 - lm[4].x) * W;
-  const ty = lm[4].y * H;
-
-  handPos.x = (ix + tx) / 2;
-  handPos.y = (iy + ty) / 2;
-
-  const dist = Math.hypot(ix - tx, iy - ty);
-  handPos.pinching = dist < W * 0.07;
-
-  // Pick up trash
-  if (handPos.pinching && !heldTrash) {
-    for (let t of fallingTrash) {
-      if (t.dead || t.held) continue;
-      const d = Math.hypot(t.x - handPos.x, t.y - handPos.y);
-      if (d < t.size * 0.65) {
-        t.held = true;
-        heldTrash = t;
-        break;
-      }
-    }
-  }
-  if (!handPos.pinching && heldTrash) {
-    // Will be released in game loop
+// ══════════════════════════════════════════
+//  SPAWN
+// ══════════════════════════════════════════
+function spawn(){
+  if(!running) return;
+  if(items.length < 7){
+    items.push(mkTrash());
   }
 }
 
-// ─────────────────────────────────────────
-//  SCORE POPUP
-// ─────────────────────────────────────────
-function showScorePop(x, y, text, color) {
-  const el = document.createElement('div');
-  el.className = 'score-pop';
-  el.textContent = text;
-  el.style.left  = x + 'px';
-  el.style.top   = y + 'px';
-  el.style.color = color;
+// ══════════════════════════════════════════
+//  HUD
+// ══════════════════════════════════════════
+function updateHUD(){
+  document.getElementById('scoreDisp').textContent = score;
+  document.getElementById('pfill').style.width = (score/TOTAL*100)+'%';
+  document.getElementById('plbl').textContent = `${score} / ${TOTAL}`;
+}
+
+// ══════════════════════════════════════════
+//  POPUP
+// ══════════════════════════════════════════
+function pop(x,y,txt,col){
+  const el=document.createElement('div');
+  el.className='score-pop'; el.textContent=txt;
+  el.style.cssText=`left:${x}px;top:${y}px;color:${col};`;
   document.getElementById('app').appendChild(el);
-  setTimeout(() => el.remove(), 1000);
+  setTimeout(()=>el.remove(),950);
 }
 
-// ─────────────────────────────────────────
-//  HUD UPDATE
-// ─────────────────────────────────────────
-function updateHUD() {
-  document.getElementById('scoreDisplay').textContent = score;
-  document.getElementById('progressBar').style.width = (score / TOTAL_SCORE * 100) + '%';
-  document.getElementById('progressLabel').textContent = `${score} / ${TOTAL_SCORE}`;
-  BIN_TYPES.forEach(type => {
-    const key = { wet:'badge-wet', dry:'badge-dry', haz:'badge-haz', rec:'badge-rec' }[type];
-    document.getElementById(key).textContent = `${BIN_EMOJI[type]} ${binScores[type]}/10`;
-  });
-}
-
-// ─────────────────────────────────────────
+// ══════════════════════════════════════════
 //  TIMER
-// ─────────────────────────────────────────
-function startTimer() {
-  timeLeft = GAME_TIME;
-  document.getElementById('timerDisplay').textContent = timeLeft;
-  timerInterval = setInterval(() => {
+// ══════════════════════════════════════════
+function startTimer(){
+  timeLeft=GTIME;
+  document.getElementById('timerDisp').textContent=timeLeft;
+  timerIv=setInterval(()=>{
     timeLeft--;
-    document.getElementById('timerDisplay').textContent = timeLeft;
-    if (timeLeft <= 0) endGame(false);
-  }, 1000);
+    document.getElementById('timerDisp').textContent=timeLeft;
+    if(timeLeft<=0) endGame(false);
+  },1000);
 }
 
-// ─────────────────────────────────────────
+// ══════════════════════════════════════════
 //  START / END
-// ─────────────────────────────────────────
-function startGame() {
-  score = 0;
-  binScores = { wet:0, dry:0, haz:0, rec:0 };
-  fallingTrash = [];
-  heldTrash = null;
-  gameOver = false;
+// ══════════════════════════════════════════
+function startGame(){
+  score=0; binSc={wet:0,dry:0,haz:0,rec:0};
+  items=[]; held=null; lastPinch=false;
   updateHUD();
-  gameRunning = true;
-
-  document.getElementById('startScreen').style.display = 'none';
-  document.getElementById('endScreen').style.display   = 'none';
-
+  running=true;
+  document.getElementById('startScreen').style.display='none';
+  document.getElementById('endScreen').style.display='none';
+  clearInterval(timerIv); clearInterval(spawnIv);
   startTimer();
-  spawnInterval = setInterval(spawnTrash, 1800);
-  spawnTrash(); spawnTrash();
-
-  lastFrame = performance.now();
-  requestAnimationFrame(gameLoop);
+  spawn(); spawn(); spawn();
+  spawnIv=setInterval(spawn, 1600);
+  if(animId) cancelAnimationFrame(animId);
+  animId=requestAnimationFrame(loop);
 }
 
-function endGame(win) {
-  gameRunning = false;
-  clearInterval(timerInterval);
-  clearInterval(spawnInterval);
-
-  const es = document.getElementById('endScreen');
-  document.getElementById('finalScore').textContent = score;
-  document.getElementById('resultText').textContent =
-    win ? '🎉 ยอดเยี่ยม! คุณทำคะแนนเต็มแล้ว!' :
-    score >= 30 ? '👍 เก่งมาก! ลองอีกครั้งนะ' :
-    score >= 20 ? '😊 ดีมาก! ฝึกอีกหน่อยนะ' : '💪 ลองอีกครั้ง!';
-  es.style.display = 'flex';
+function endGame(win){
+  running=false;
+  clearInterval(timerIv); clearInterval(spawnIv);
+  if(animId){ cancelAnimationFrame(animId); animId=null; }
+  document.getElementById('finalScore').textContent=score;
+  document.getElementById('resultTxt').textContent =
+    win?'🎉 ยอดเยี่ยม! เต็ม 40 คะแนน!':
+    score>=30?'👍 เก่งมาก! ลองอีกครั้ง':
+    score>=20?'😊 ดีมาก! ฝึกอีกหน่อยนะ':'💪 สู้ต่อ! ลองอีกครั้ง';
+  document.getElementById('endScreen').style.display='flex';
 }
 
-document.getElementById('btnStart').onclick   = startGame;
-document.getElementById('btnRestart').onclick  = startGame;
+document.getElementById('btnStart').onclick  = startGame;
+document.getElementById('btnRestart').onclick = startGame;
 
-// ─────────────────────────────────────────
-//  CAMERA + MEDIAPIPE INIT
-// ─────────────────────────────────────────
-async function initCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'user', width:1280, height:720 } });
-    video.srcObject = stream;
+// ══════════════════════════════════════════
+//  HAND TRACKING (MediaPipe)
+// ══════════════════════════════════════════
+function onHands(res){
+  if(!running || !res.multiHandLandmarks?.length){
+    hand.pinch=false; hand.x=hand.y=-1; return;
+  }
+  const lm=res.multiHandLandmarks[0];
+  const ix=(1-lm[8].x)*W, iy=lm[8].y*H;
+  const tx=(1-lm[4].x)*W, ty=lm[4].y*H;
+  hand.x=(ix+tx)/2; hand.y=(iy+ty)/2;
+  hand.pinch = Math.hypot(ix-tx,iy-ty) < W*0.075;
 
-    const hands = new Hands({
-      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}`
-    });
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.6,
-    });
-    hands.onResults(onHandResults);
+  if(hand.pinch && !held){
+    for(const t of items){
+      if(t.dead||t.held) continue;
+      if(Math.hypot(t.x-hand.x, t.y-hand.y) < t.sz*0.7){
+        t.held=true; held=t; break;
+      }
+    }
+  }
+}
 
-    const cam = new Camera(video, {
-      onFrame: async () => { await hands.send({ image: video }); },
-      width: 1280, height: 720,
+async function initCam(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:1280,height:720}});
+    video.srcObject=stream;
+
+    const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}`});
+    hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:0.7,minTrackingConfidence:0.6});
+    hands.onResults(onHands);
+
+    const cam=new Camera(video,{
+      onFrame:async()=>{ await hands.send({image:video}); },
+      width:1280,height:720
     });
     cam.start();
-
-  } catch (e) {
-    document.getElementById('permScreen').style.display = 'flex';
-    document.getElementById('startScreen').style.display = 'none';
-    console.error(e);
+  } catch(e){
+    console.warn('Camera error:',e);
+    // Game still works with mouse/touch fallback
   }
 }
 
-// Fallback mouse/touch for desktop testing
-gameCanvas.addEventListener('mousemove', e => {
-  if (!gameRunning) return;
-  handPos.x = e.clientX; handPos.y = e.clientY;
+// ══════════════════════════════════════════
+//  MOUSE / TOUCH FALLBACK
+// ══════════════════════════════════════════
+canvas.addEventListener('mousemove',e=>{
+  if(!running) return;
+  hand.x=e.clientX; hand.y=e.clientY;
+  if(hand.pinch && !held){
+    for(const t of items){
+      if(t.dead||t.held) continue;
+      if(Math.hypot(t.x-hand.x,t.y-hand.y)<t.sz*0.7){ t.held=true; held=t; break; }
+    }
+  }
 });
-gameCanvas.addEventListener('mousedown', () => { handPos.pinching = true; });
-gameCanvas.addEventListener('mouseup',   () => { handPos.pinching = false; });
+canvas.addEventListener('mousedown',e=>{ hand.pinch=true; hand.x=e.clientX; hand.y=e.clientY; });
+canvas.addEventListener('mouseup',  ()=>{ hand.pinch=false; });
 
-gameCanvas.addEventListener('touchmove', e => {
-  if (!gameRunning) return;
-  e.preventDefault();
-  handPos.x = e.touches[0].clientX; handPos.y = e.touches[0].clientY;
-}, { passive:false });
-gameCanvas.addEventListener('touchstart', e => { handPos.pinching = true; handPos.x = e.touches[0].clientX; handPos.y = e.touches[0].clientY; });
-gameCanvas.addEventListener('touchend',   () => { handPos.pinching = false; });
+canvas.addEventListener('touchmove',e=>{
+  if(!running) return; e.preventDefault();
+  hand.x=e.touches[0].clientX; hand.y=e.touches[0].clientY;
+  if(hand.pinch && !held){
+    for(const t of items){
+      if(t.dead||t.held) continue;
+      if(Math.hypot(t.x-hand.x,t.y-hand.y)<t.sz*0.7){ t.held=true; held=t; break; }
+    }
+  }
+},{passive:false});
+canvas.addEventListener('touchstart',e=>{ hand.pinch=true; hand.x=e.touches[0].clientX; hand.y=e.touches[0].clientY; });
+canvas.addEventListener('touchend',  ()=>{ hand.pinch=false; });
 
-// ─────────────────────────────────────────
+// ══════════════════════════════════════════
 //  BOOT
-// ─────────────────────────────────────────
-initCamera();
+// ══════════════════════════════════════════
+initCam();
 </script>
 </body>
 </html>
