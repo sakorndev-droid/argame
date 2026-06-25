@@ -349,23 +349,95 @@ function drawTrash(t){
 }
 
 // ══════════════════════════════════════════
-//  HAND CURSOR
+//  GHOST HAND — full finger skeleton AR overlay
 // ══════════════════════════════════════════
-function drawHand(){
-  if(hand.x<0) return;
-  const r = hand.pinch ? 17:23;
-  const col = hand.pinch?'#00e676':'#ffffff';
+const FINGER_BONES = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],
+  [0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20]
+];
+const PALM_IDX = [0,5,9,13,17,0];
+let lastLM = null; // store latest landmarks
+
+function drawGhostHand(lm){
+  if(!lm || lm.length===0) return;
+  const pinching = hand.pinch;
   ctx.save();
-  ctx.strokeStyle=col; ctx.lineWidth=3;
-  ctx.shadowColor=col; ctx.shadowBlur=18;
-  ctx.beginPath(); ctx.arc(hand.x,hand.y,r,0,Math.PI*2); ctx.stroke();
+
+  // palm ghost fill
   ctx.beginPath();
-  ctx.moveTo(hand.x-r-7,hand.y); ctx.lineTo(hand.x+r+7,hand.y);
-  ctx.moveTo(hand.x,hand.y-r-7); ctx.lineTo(hand.x,hand.y+r+7);
-  ctx.stroke();
-  if(hand.pinch){
-    ctx.fillStyle=col+'44';
-    ctx.beginPath(); ctx.arc(hand.x,hand.y,r,0,Math.PI*2); ctx.fill();
+  PALM_IDX.forEach((i,n)=>{
+    const px=(1-lm[i].x)*W, py=lm[i].y*H;
+    n===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+  });
+  ctx.closePath();
+  ctx.fillStyle = pinching ? 'rgba(0,230,118,0.10)' : 'rgba(180,220,255,0.08)';
+  ctx.fill();
+
+  // bones
+  FINGER_BONES.forEach(([a,b])=>{
+    const ax=(1-lm[a].x)*W, ay=lm[a].y*H;
+    const bx=(1-lm[b].x)*W, by=lm[b].y*H;
+    // glow
+    ctx.strokeStyle = pinching ? 'rgba(0,230,118,0.5)' : 'rgba(120,200,255,0.4)';
+    ctx.lineWidth=5; ctx.lineCap='round';
+    ctx.shadowColor = pinching ? '#00e676' : '#80c8ff'; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+    // bright core
+    ctx.strokeStyle = pinching ? 'rgba(0,255,150,0.95)' : 'rgba(200,235,255,0.80)';
+    ctx.lineWidth=2; ctx.shadowBlur=3;
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+  });
+  ctx.shadowBlur=0;
+
+  // joints
+  lm.forEach((p,i)=>{
+    const px=(1-p.x)*W, py=p.y*H;
+    const isThumb = (i===4), isIndex = (i===8);
+    const r = (isThumb||isIndex) ? 10 : (i===0 ? 8 : 5);
+    ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2);
+    if(isIndex){ ctx.fillStyle='#00cfff'; ctx.shadowColor='#00cfff'; ctx.shadowBlur=20; }
+    else if(isThumb){ ctx.fillStyle='#ff9100'; ctx.shadowColor='#ff9100'; ctx.shadowBlur=20; }
+    else { ctx.fillStyle = pinching ? 'rgba(0,210,100,0.85)' : 'rgba(160,220,255,0.75)'; ctx.shadowBlur=6; ctx.shadowColor='#80cfff'; }
+    ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.7)'; ctx.lineWidth=1.5; ctx.shadowBlur=0; ctx.stroke();
+  });
+
+  // fingertip labels
+  const ix8=(1-lm[8].x)*W, iy8=lm[8].y*H;
+  const tx4=(1-lm[4].x)*W, ty4=lm[4].y*H;
+
+  // index label
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.roundRect(ix8+13,iy8-16,56,22,6); ctx.fill();
+  ctx.fillStyle='#00cfff'; ctx.font='bold 12px Kanit,sans-serif';
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText('นิ้วชี้', ix8+18, iy8-5);
+
+  // thumb label
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.roundRect(tx4+13,ty4-16,64,22,6); ctx.fill();
+  ctx.fillStyle='#ff9100'; ctx.font='bold 12px Kanit,sans-serif';
+  ctx.fillText('นิ้วโป้ง', tx4+18, ty4-5);
+
+  // pinch spark
+  if(pinching){
+    const mx=(ix8+tx4)/2, my=(iy8+ty4)/2;
+    ctx.strokeStyle='rgba(0,255,130,0.9)'; ctx.lineWidth=3;
+    ctx.shadowColor='#00e676'; ctx.shadowBlur=22;
+    ctx.setLineDash([7,5]);
+    ctx.beginPath(); ctx.moveTo(ix8,iy8); ctx.lineTo(tx4,ty4); ctx.stroke();
+    ctx.setLineDash([]);
+    // spark burst
+    ctx.beginPath(); ctx.arc(mx,my,16,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,255,130,0.22)'; ctx.shadowBlur=35; ctx.fill();
+    ctx.strokeStyle='#00e676'; ctx.lineWidth=2.5; ctx.shadowBlur=20; ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#00e676'; ctx.font='bold 14px Kanit,sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('PINCH ✊', mx, my-30);
   }
   ctx.restore();
 }
@@ -412,7 +484,7 @@ function loop(){
   });
 
   items = items.filter(t=>!t.dead);
-  drawHand();
+  drawGhostHand(lastLM);
   lastPinch = hand.pinch;
 
   if(score>=TOTAL){ endGame(true); return; }
@@ -500,18 +572,27 @@ document.getElementById('btnRestart').onclick = startGame;
 // ══════════════════════════════════════════
 function onHands(res){
   if(!running || !res.multiHandLandmarks?.length){
-    hand.pinch=false; hand.x=hand.y=-1; return;
+    hand.pinch=false; hand.x=hand.y=-1; lastLM=null; return;
   }
-  const lm=res.multiHandLandmarks[0];
+  const lm = res.multiHandLandmarks[0];
+  lastLM = lm;
+
+  // index tip [8], thumb tip [4] — mirrored X
   const ix=(1-lm[8].x)*W, iy=lm[8].y*H;
   const tx=(1-lm[4].x)*W, ty=lm[4].y*H;
+
+  // midpoint between fingertips = grab point
   hand.x=(ix+tx)/2; hand.y=(iy+ty)/2;
   hand.pinch = Math.hypot(ix-tx,iy-ty) < W*0.075;
 
   if(hand.pinch && !held){
     for(const t of items){
       if(t.dead||t.held) continue;
-      if(Math.hypot(t.x-hand.x, t.y-hand.y) < t.sz*0.7){
+      // grab if midpoint near item, OR either fingertip near item
+      const dMid = Math.hypot(t.x-hand.x, t.y-hand.y);
+      const dIdx = Math.hypot(t.x-ix, t.y-iy);
+      const dThm = Math.hypot(t.x-tx, t.y-ty);
+      if(dMid < t.sz*0.75 || dIdx < t.sz*0.75 || dThm < t.sz*0.75){
         t.held=true; held=t; break;
       }
     }
@@ -539,7 +620,7 @@ async function initCam(){
 }
 
 // ══════════════════════════════════════════
-//  MOUSE / TOUCH FALLBACK
+//  MOUSE / TOUCH FALLBACK (no camera)
 // ══════════════════════════════════════════
 canvas.addEventListener('mousemove',e=>{
   if(!running) return;
@@ -547,7 +628,7 @@ canvas.addEventListener('mousemove',e=>{
   if(hand.pinch && !held){
     for(const t of items){
       if(t.dead||t.held) continue;
-      if(Math.hypot(t.x-hand.x,t.y-hand.y)<t.sz*0.7){ t.held=true; held=t; break; }
+      if(Math.hypot(t.x-hand.x,t.y-hand.y)<t.sz*0.75){ t.held=true; held=t; break; }
     }
   }
 });
@@ -560,7 +641,7 @@ canvas.addEventListener('touchmove',e=>{
   if(hand.pinch && !held){
     for(const t of items){
       if(t.dead||t.held) continue;
-      if(Math.hypot(t.x-hand.x,t.y-hand.y)<t.sz*0.7){ t.held=true; held=t; break; }
+      if(Math.hypot(t.x-hand.x,t.y-hand.y)<t.sz*0.75){ t.held=true; held=t; break; }
     }
   }
 },{passive:false});
